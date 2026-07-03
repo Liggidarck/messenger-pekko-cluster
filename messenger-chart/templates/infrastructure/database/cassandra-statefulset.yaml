@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra
+  labels:
+    app: cassandra
+spec:
+  serviceName: cassandra-headless
+  replicas: 1 # Для локального k8s лучше оставить 1. В проде можно сделать 3.
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      containers:
+        - name: cassandra
+          image: cassandra:4.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7000
+              name: intra-node
+            - containerPort: 9042
+              name: cql
+          env:
+            - name: CASSANDRA_CLUSTER_NAME
+              value: "MessengerCluster"
+            # Для сборки кольца ноды должны знать seed-адрес. В StatefulSet поды имеют стабильные имена.
+            - name: CASSANDRA_SEEDS
+              value: "cassandra-0.cassandra-headless.default.svc.cluster.local"
+
+            # ОГРАНИЧЕНИЯ ДЛЯ MINIKUBE (иначе Кассандра съест всю память и упадет OOM)
+            - name: MAX_HEAP_SIZE
+              value: "512M"
+            - name: HEAP_NEWSIZE
+              value: "100M"
+
+          readinessProbe:
+            exec:
+              command: ["/bin/bash", "-c", "nodetool status | grep -E \"^UN\\s+\""]
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          volumeMounts:
+            - name: cassandra-data
+              mountPath: /var/lib/cassandra
+
+  # Это гарантия того, что данные сохранятся, если под перезапустится.
+  # k8s создаст PersistentVolumeClaim автоматически.
+  volumeClaimTemplates:
+    - metadata:
+        name: cassandra-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 2Gi

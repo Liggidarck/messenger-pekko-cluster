@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messenger-chat-core
+  labels:
+    app: messenger-cluster
+    role: core
+spec:
+  replicas: {{ .Values.core.replicaCount }}
+  selector:
+    matchLabels:
+      app: messenger-cluster
+      role: core
+  template:
+    metadata:
+      labels:
+        app: messenger-cluster
+        role: core
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9095"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: messenger-service-account
+      initContainers:
+        - name: wait-for-cassandra
+          image: busybox:1.31
+          command: ['sh', '-c', 'until nc -z cassandra-service 9042; do echo "Waiting for Cassandra..."; sleep 2; done;']
+      containers:
+        - name: messenger-chat-core
+          image: {{ .Values.core.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 25520
+            - containerPort: 8558
+          env:
+            - name: K8S_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CASSANDRA_CONTACT_POINTS
+              value: "cassandra-service:9042"
+          resources:
+{{ toYaml .Values.core.resources | indent 12 }}
+          startupProbe:
+            httpGet:
+              path: /alive
+              port: 8558
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8558
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: 8558
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 10

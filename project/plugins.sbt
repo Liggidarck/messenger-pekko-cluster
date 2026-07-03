@@ -1,0 +1,5 @@
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "2.3.1")
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.7.5")
+addSbtPlugin("com.github.sbt" % "sbt-javaagent" % "0.2.0")
+addSbtPlugin("io.github.davidmweber" % "flyway-sbt" % "7.4.0")
+addSbtPlugin("com.github.sbt.junit" % "sbt-jupiter-interface" % "0.15.1")

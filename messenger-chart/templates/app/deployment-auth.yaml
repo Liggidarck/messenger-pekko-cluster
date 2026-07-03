@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messenger-auth
+  labels:
+    app: messenger-cluster
+    role: auth
+spec:
+  replicas: {{ .Values.auth.replicaCount }}
+  selector:
+    matchLabels:
+      app: messenger-cluster
+      role: auth
+  template:
+    metadata:
+      labels:
+        app: messenger-cluster
+        role: auth
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9095"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: messenger-service-account
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:15-alpine
+          command: [ 'sh', '-c',
+            'until pg_isready -h postgres-service -p 5432; 
+          do echo "Waiting for PostgreSQL..."; sleep 2; done;' ]
+
+      containers:
+        - name: messenger-auth
+          image: {{ .Values.auth.image }}
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: K8S_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CLUSTER_PORT
+              value: "25520"
+
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_NAME
+              value: "messenger_auth"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+
+          resources:
+{{ toYaml .Values.auth.resources | indent 12 }}
+          ports:
+            - name: management
+              containerPort: 8558
+            - name: remoting
+              containerPort: 25520
+            - name: metrics
+              containerPort: 9095
+
+          startupProbe:
+            httpGet:
+              path: /alive
+              port: management
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 10

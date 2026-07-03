@@ -1,0 +1,14 @@
+gateway:
+  replicaCount: 1
+  image: "messenger/messenger-gateway-node:0.0.1"
+  resources: {}
+
+auth:
+  replicaCount: 1
+  image: "messenger/messenger-auth:0.0.1"
+  resources: {}
+
+core:
+  replicaCount: 1
+  image: "messenger/messenger-chat-core:0.0.1"
+  resources: {}

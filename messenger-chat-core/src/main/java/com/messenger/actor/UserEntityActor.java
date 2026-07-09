@@ -233,13 +233,15 @@ public class UserEntityActor extends AbstractBehavior<UserEntityProtocol.Command
     }
 
     private void sendReadState(UUID channelId, UUID lastRead, ActorRef<UserEntityProtocol.ReadStateResponse> replyTo) {
+        String query;
         if (lastRead == null) {
-            replyTo.tell(new UserEntityProtocol.ReadStateResponse(channelId, null, 0));
-            return;
+            query = "SELECT COUNT(*) FROM " + CassandraSessionHolder.KEYSPACE + ".messages WHERE channel_id = ? LIMIT 100";
+        } else {
+            query = "SELECT COUNT(*) FROM " + CassandraSessionHolder.KEYSPACE + ".messages WHERE channel_id = ? AND message_id > ? LIMIT 100";
         }
         cql.executeAsync(
-                "SELECT COUNT(*) FROM " + CassandraSessionHolder.KEYSPACE + ".messages WHERE channel_id = ? AND message_id > ? LIMIT 100",
-                channelId, lastRead
+                query,
+                lastRead != null ? new Object[]{channelId, lastRead} : new Object[]{channelId}
         ).whenComplete((countRows, err) -> {
             int count = 0;
             if (err != null) {
